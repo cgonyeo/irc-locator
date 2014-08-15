@@ -3,6 +3,13 @@ import System.IO
 import Control.Concurrent
 import Network.Connection
 import qualified Data.ByteString.Char8 as BSC
+import Aws
+import Aws.Core
+import Aws.General
+import Aws.Sns
+import Data.IORef
+import Data.Time.Clock
+import qualified Data.Text as DT
  
 main :: IO ()
 main = do
@@ -14,6 +21,7 @@ main = do
     bindSocket sock (SockAddrInet 4242 iNADDR_ANY)
     -- allow a maximum of 2 outstanding connections
     listen sock 2
+    sendToSns "test"
     mainLoop sock
  
 mainLoop :: Socket -> IO ()
@@ -57,3 +65,13 @@ startTls = do
                             , connectionUseSocks  = Nothing
                             }
     return con
+
+sendToSns :: String -> IO ()
+sendToSns msg = do
+    snsioref <- newIORef []
+    creds <- makeCredentials (BSC.pack "asdf") (BSC.pack "asdf")
+    let cfg = Aws.Configuration (ExpiresIn 3600) creds (Aws.defaultLog Aws.Debug)
+    let snsCfg = SnsConfiguration HTTPS UsWest2
+    let arn = Arn ServiceNamespaceSns (Just UsWest2) (Just $ AccountId $ DT.pack "1337") ([DT.pack "asdf"])
+    topics <- simpleAws cfg snsCfg $ Publish (snsMessage (DT.pack msg)) Nothing Nothing (Right arn)
+    putStrLn $ show topics
